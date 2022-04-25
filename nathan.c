@@ -41,6 +41,20 @@ int addToQueue(struct Queue* q, int patientNum) {
    return 1;
 }
 
+struct QueueNode* removeFromQueue(struct Queue* q) {
+   if(q->front == NULL) { //if queue is empty return nothing
+      return NULL;
+   }
+
+   struct QueueNode* temp = q->front; //temp node that returns current head of queue
+   q->front = q->front->next; //move next node in to front of queue
+   q->size -= 1;
+   if(q->front == NULL) { //if queue is now empty, reset most recent node pointer
+      q->rear = NULL;
+   }
+   return temp; //return removed node
+}
+
 void printQueue(struct Queue* q) {
    struct QueueNode* current = q->front;
    int i = 0;
@@ -87,6 +101,18 @@ int main(int argc, char *argv[]) {
       tim.tv_nsec = randomTime % 1000 * 1000000L;
       nanosleep(&tim, &tim2);
    }
+   printf("Sitting:\n");
+   printQueue(sofas);
+   printf("Standing:\n");
+   printQueue(standing);
+
+   printf("Front of sitting queue: ");
+   struct QueueNode* front = removeFromQueue(sofas);
+   printf("Patient %d\n", front->patientNum);
+
+   struct QueueNode* toAdd = removeFromQueue(standing);
+   addToQueue(sofas, toAdd->patientNum);
+
    printf("Sitting:\n");
    printQueue(sofas);
    printf("Standing:\n");

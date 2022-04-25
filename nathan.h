@@ -11,4 +11,5 @@ struct QueueNode* add(int patientNum);
 struct Queue* create();
 int addToQueue(struct Queue* q, int patientNum);
 void printQueue(struct Queue* q);
+struct QueueNode* removeFromQueue(struct Queue* q);
 #endif
