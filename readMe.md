@@ -3,7 +3,7 @@
 - Lucas Stott
 - Nathan Bales
 - Drew Nguyen
-- Danuel Albrecht
+- Daniel Albrecht
 
 Project Purpose:
 1. Learn Mutex/Semaphore Synchonization and Scheduling 
