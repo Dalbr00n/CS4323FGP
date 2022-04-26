@@ -44,6 +44,8 @@ pthread_cond_t condQueue, waitQueue, sofaQueue, checkupQueue, getCheckupQueue, m
 sem_t sem_waitingRoom; 
 sem_t sem_sofaCount;
 sem_t sem_doctors;
+sem_t sem_cashRegister;
+sem_t sem_atCashRegister;
 sem_t sem_entry;
 sem_t sem_exit;
 
@@ -67,8 +69,9 @@ void leaveClinic(int patient) {
     /* Mutex Lock for Print Statement */
     pthread_mutex_lock(&outputQueue); 
     printf("Patient: %d (Thread ID:%lu): Leaving the Clinic without checkup\n", patient,  pthread_self());
-    pthread_mutex_unlock(&outputQueue);
     pthread_kill(); // Kills thread
+    pthread_mutex_unlock(&outputQueue);
+
 }
 
 /* Patient Enters Waiting room Queue | Waiting for Open Sofa Seat */
@@ -97,6 +100,8 @@ void sitOnSofa(int patient) {
     sem_post(&sem_waitingRoom);
     sem_post(&sem_doctors);
 
+    // ++++++++++++++++++
+
     sem_wait(&sem_entry);
     getMedicalCheckup(patient);
     sem_post(&sem_exit);
@@ -118,15 +123,16 @@ void getMedicalCheckup(int patient) {
     printf("Patient: %d (Thread ID:%lu): Getting Medical Checkup\n", patient,  pthread_self());
     pthread_mutex_unlock(&outputQueue);
     
-
 }
 
 /* Patient Makes Payment */
 void makePayment(int patient) {
 
+    sem_wait(&sem_atCashRegister);
     pthread_mutex_lock(&outputQueue); // Lock to Thread that Called
     printf("Patient: %d (Thread ID:%lu): Making Payment\n", patient,  pthread_self());
     pthread_mutex_unlock(&outputQueue);
+    sem_post(&sem_atCashRegister);
     
 }
 
@@ -135,7 +141,7 @@ void performMedicalCheckup(int patient) {
 
     usleep(duration * 1000);
     pthread_mutex_lock(&outputQueue); // Lock to Thread that Called
-    printf("Medical Professional (Thread ID:%lu): Checking Patient %d\n", pthread_self(), patient);
+    printf("Medical Professional [%d] (Thread ID:%lu): Checking Patient %d\n", patient, pthread_self(), patient);
     pthread_mutex_unlock(&outputQueue);
    
 }
@@ -143,9 +149,12 @@ void performMedicalCheckup(int patient) {
 /* Medical Professional Accepts Patients Payment */
 void acceptPayment(int patient) {
 
+    sem_wait(&sem_cashRegister);
+    sem_post(&sem_atCashRegister);
     pthread_mutex_lock(&outputQueue); // Lock to Thread that Called
-    printf("Medical Professional (Thread ID:%lu): Accepting Payment from Patient %d\n", pthread_self(), patient);
+    printf("Medical Professional [%d] (Thread ID:%lu): Accepting Payment from Patient %d\n", patient, pthread_self(), patient);
     pthread_mutex_unlock(&outputQueue);
+    sem_post(&sem_cashRegister);
 
 }
 
@@ -154,15 +163,18 @@ void* waitForPatients(void* args) {
     pthread_mutex_lock(&outputQueue); // Lock to Thread that Called
     int doctor = *(int *)args;
     while (1) {
-        printf("Medical Professional (Thread ID:%lu): Waiting for Patient\n", pthread_self());
+        int patient = patient++;
+        printf("Medical Professional [%d] (Thread ID:%lu): Waiting for Patient\n", doctor, pthread_self());
         pthread_mutex_unlock(&outputQueue);
 
         sem_post(&sem_sofaCount);
         sem_wait(&sem_doctors);
 
-        //sem_wait(&sem_exit);
+        // +++++++++++++++++++++++
+
+        sem_wait(&sem_exit);
         performMedicalCheckup(doctor);
-        //sem_post(&sem_entry);
+        sem_post(&sem_entry);
 
         sem_wait(&sem_exit);
         acceptPayment(doctor);
@@ -200,6 +212,8 @@ int main(int argc, char* argv[]) {
     sem_init(&sem_doctors, 0, doctors);
     sem_init(&sem_entry, 0, 0);
     sem_init(&sem_exit, 0, 1);
+    sem_init(&sem_cashRegister,0, 1);
+    sem_init(&sem_atCashRegister,0, 0);
 
     // sem_init(&semEmpty, 0, waitingRoom_size); // Semaphore Queue
     // sem_init(&semEmpty, 0, waitingRoom_size);  
@@ -222,7 +236,6 @@ int main(int argc, char* argv[]) {
     /* Thread out Patients at Random Time using time_arrival (0 < time_arrival) */ 
     for (int i = 0; i < patients_size; i++) { // Patient Thread Creation
         wait_time = rand()%time_arrival;
-        printf("Arrival Time for Patient[%i]: %d\n",i, wait_time);
         usleep(wait_time);
         if (pthread_create(&tp[i], NULL, &patientArrival, &i) != 0) {
             perror("Failed to create the thread");
