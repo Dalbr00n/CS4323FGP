@@ -5,7 +5,7 @@
 
 // gcc main.c -o main -lpthread && ./main 2 100 3 3 10 100
 // Arguments (2, 100, 3, 3, 10 , 100)
-// 1. Number Medical Proffesions (Nm)
+// 1. Number Medical Professionals (Nm)
 // 2. Number of Patients (Np)
 // 3. Waiting Room Capacity (Nw)
 // 4. Number of Sofas (Ns)
@@ -23,6 +23,7 @@
 
 void* patientArrival(void* args);
 void leaveClinic(int patient);
+void leaveClinicCheckup(int patient);
 void enterWaitingRoom(int patient);
 void sitOnSofa(int patient);
 void getMedicalCheckup(int patient);
