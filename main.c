@@ -43,92 +43,130 @@ pthread_cond_t condQueue, waitQueue, sofaQueue, checkupQueue, getCheckupQueue, m
 //sem_t semFull;  // Other Semaphore for Post() Wait() functions
 sem_t sem_waitingRoom; 
 sem_t sem_sofaCount;
-sem_t sem_register;
+sem_t sem_doctors;
+sem_t sem_entry;
+sem_t sem_exit;
 
 /* Patient Thread for (Entering Clinic) or (Leaving Without Checkup) */
 void* patientArrival(void* args) {
+    /* Mutex Lock for Print Statement */
     pthread_mutex_lock(&outputQueue);
     int patient = *(int *)args;
     printf("Patient: %d (Thread ID:%lu): Arriving At Clinic\n", patient,  pthread_self());
     pthread_mutex_unlock(&outputQueue);
-    sem_getvalue(&sem_waitingRoom, &sem_value);
-    if(sem_value == 0) leaveClinic(patient);
+    
+    /* Critical Section Semaphore Unlock Pass to Function */
+    sem_getvalue(&sem_waitingRoom, &sem_value); // Passes value sem_waitingRoom to sem_value 
+    if(sem_value == 0) // If sem_value is 0 -> waitingRoom is Full 
+        leaveClinic(patient);
     else enterWaitingRoom(patient);
 }
 
 /* Patient Leaves Clinic -> No Checkup and Patient Thread Killed */
 void leaveClinic(int patient) {
-    pthread_mutex_lock(&outputQueue); // Lock to Main Threads
+    /* Mutex Lock for Print Statement */
+    pthread_mutex_lock(&outputQueue); 
     printf("Patient: %d (Thread ID:%lu): Leaving the Clinic without checkup\n", patient,  pthread_self());
     pthread_mutex_unlock(&outputQueue);
-    pthread_kill();
+    pthread_kill(); // Kills thread
 }
 
 /* Patient Enters Waiting room Queue | Waiting for Open Sofa Seat */
 void enterWaitingRoom(int patient) {
-    sem_wait(&sem_waitingRoom);
+    /* Mutex Lock for Print Statement */
     pthread_mutex_lock(&outputQueue);
     printf("Patient: %d (Thread ID:%lu): Entering Waiting Room\n", patient,  pthread_self());
     pthread_mutex_unlock(&outputQueue);
-    sem_wait(&sem_sofaCount);
-    sitOnSofa(patient);
+
+    /* Critical Section */
+    sem_wait(&sem_waitingRoom); // Incriment Semaphore sem_waitingRoom
+    sitOnSofa(patient); 
 }
 
 /* Patient Sits on Sofa Queue | Waiting for Doctor */ 
 void sitOnSofa(int patient) {
-    pthread_mutex_lock(&outputQueue); // Lock to Thread that Called
+    /* Mutex Lock for Print Statement */
+    pthread_mutex_lock(&outputQueue); 
     printf("Patient: %d (Thread ID:%lu): Sitting On Sofa\n", patient,  pthread_self());
     pthread_mutex_unlock(&outputQueue);
-    pthread_cond_signal(&waitQueue);
-    pthread_cond_signal(&checkupQueue);
+
+    /* Critical Section */
+
+    sem_wait(&sem_sofaCount);
+
+    sem_post(&sem_waitingRoom);
+    sem_post(&sem_doctors);
+
+    sem_wait(&sem_entry);
     getMedicalCheckup(patient);
-    pthread_cond_signal(&getCheckupQueue);
+    sem_post(&sem_exit);
+
+    sem_wait(&sem_entry);
     makePayment(patient);
-    pthread_cond_signal(&makePaymentQueue);
+    sem_post(&sem_exit);
+
+    sem_wait(&sem_entry);
     leaveClinic(patient);
+    sem_post(&sem_exit);
 }
 
 /* Patient Starts Checkup With Medical Professional */
 void getMedicalCheckup(int patient) {
+
+    usleep(duration * 1000);
     pthread_mutex_lock(&outputQueue); 
     printf("Patient: %d (Thread ID:%lu): Getting Medical Checkup\n", patient,  pthread_self());
     pthread_mutex_unlock(&outputQueue);
-    pthread_cond_signal(&getCheckupQueue);
+    
+
 }
 
 /* Patient Makes Payment */
 void makePayment(int patient) {
+
     pthread_mutex_lock(&outputQueue); // Lock to Thread that Called
     printf("Patient: %d (Thread ID:%lu): Making Payment\n", patient,  pthread_self());
     pthread_mutex_unlock(&outputQueue);
-    pthread_cond_signal(&makePaymentQueue);
+    
 }
 
 /* Medical Profession Performs Checkup on Patient */
 void performMedicalCheckup(int patient) {
+
+    usleep(duration * 1000);
     pthread_mutex_lock(&outputQueue); // Lock to Thread that Called
     printf("Medical Professional (Thread ID:%lu): Checking Patient %d\n", pthread_self(), patient);
     pthread_mutex_unlock(&outputQueue);
+   
 }
 
 /* Medical Professional Accepts Patients Payment */
 void acceptPayment(int patient) {
+
     pthread_mutex_lock(&outputQueue); // Lock to Thread that Called
     printf("Medical Professional (Thread ID:%lu): Accepting Payment from Patient %d\n", pthread_self(), patient);
     pthread_mutex_unlock(&outputQueue);
+
 }
 
 /* Rotating Queue for Medical Professional to Process Patients */ 
 void* waitForPatients(void* args) {
+    pthread_mutex_lock(&outputQueue); // Lock to Thread that Called
+    int doctor = *(int *)args;
     while (1) {
-        pthread_mutex_lock(&outputQueue); // Lock to Thread that Called
         printf("Medical Professional (Thread ID:%lu): Waiting for Patient\n", pthread_self());
-        while (sofa_count == 0) { // Conditional Wait for Patient Entry Onto Sofa
-            pthread_cond_wait(&checkupQueue, &outputQueue);
-        }
-        pthread_cond_signal(&sofaQueue);
         pthread_mutex_unlock(&outputQueue);
-        performMedicalCheckup(queue);
+
+        sem_post(&sem_sofaCount);
+        sem_wait(&sem_doctors);
+
+        //sem_wait(&sem_exit);
+        performMedicalCheckup(doctor);
+        //sem_post(&sem_entry);
+
+        sem_wait(&sem_exit);
+        acceptPayment(doctor);
+        sem_post(&sem_entry);
     }
 }
 
@@ -159,7 +197,9 @@ int main(int argc, char* argv[]) {
     /* Semaphore Initialize */
     sem_init(&sem_waitingRoom, 0, waitingRoom_size); 
     sem_init(&sem_sofaCount, 0, sofas_size);
-    sem_init(&sem_register, 0, 1);
+    sem_init(&sem_doctors, 0, doctors);
+    sem_init(&sem_entry, 0, 0);
+    sem_init(&sem_exit, 0, 1);
 
     // sem_init(&semEmpty, 0, waitingRoom_size); // Semaphore Queue
     // sem_init(&semEmpty, 0, waitingRoom_size);  
@@ -174,7 +214,7 @@ int main(int argc, char* argv[]) {
 
     /* Thread out all Medical Professional Procecess */ 
     for (int i = 0; i < doctors; i++) { 
-        if (pthread_create(&tw[i], NULL, &waitForPatients, NULL) != 0) {
+        if (pthread_create(&tw[i], NULL, &waitForPatients, &i) != 0) {
             perror("Failed to create the thread");
         }
     }
