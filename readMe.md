@@ -58,3 +58,10 @@ Project Purpose:
 - [X] Validating Threads Generation
 - [X] Gracefully Exit Threads
 - [X] Testing Shared Memory Exposure 
+
+### Potential Errors
+1. Passing Patient Information to Doctor
+2. Possible Variable Overwriting on Globals
+
+### Fixed
+1. Patient and Doctor Threads Exited  
