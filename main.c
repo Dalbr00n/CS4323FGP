@@ -1,6 +1,11 @@
-// Lucas Stott, Nathan Bales, Drew Nguyen, Daniel ALbrecht
-// CS-4323 Groud D
+// CS-4323 Group D (4/26/2022)
 // Final Group Project 
+
+// Lucas Stott          lstott@okstate.edu
+// Nathan Bales         nathan.bales@okstate.edu
+// Drew Nguyen          drew.nguyen@okstate.edu
+// Daniel ALbrecht      daniel.albrecht@okstate.edu
+
 // Run gcc main.c -o main -lpthread && ./main 2 100 3 3 10 100
 
 // gcc main.c -o main -lpthread && ./main 2 100 3 3 10 100
